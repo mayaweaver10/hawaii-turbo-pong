@@ -1,8 +1,17 @@
 # Hawaii Turbo Pong
 
-A tropical, computer-versus-computer Pong game hosted with Streamlit. Watch
-the computers play, change the ball speed and AI skill, or restart the match.
+A tropical Pong game hosted with Streamlit. You control the left paddle and
+play against the computer on the right. Change the ball speed and computer
+skill, or restart the match.
 The animation runs in your browser; no API keys or external assets are needed.
+
+## How to play
+
+- Select **Start game** when you are ready.
+- **Keyboard:** click the court, then hold **W/S** or the **up/down arrows**.
+- **Mouse:** move the pointer up and down over the court.
+- **Touch:** drag your finger up and down on the court.
+- Select **Restart** to reset both scores and begin a new match.
 
 ## Run locally
 

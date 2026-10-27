@@ -1,10 +1,10 @@
 # ============================================================
-# 🌺 HAWAII TURBO PONG — COMPUTER VS. COMPUTER
+# 🌺 HAWAII TURBO PONG — YOU VS. COMPUTER
 # Run with: streamlit run app.py
 #
 # Python displays the game.
 # JavaScript runs the game inside the Streamlit page.
-# Both paddles are computer-controlled.
+# You control the left paddle; the computer controls the right.
 # ============================================================
 
 import streamlit as st
@@ -16,6 +16,7 @@ components.html(r"""
 <style>
   body { margin: 0; }
   *, *::before, *::after { box-sizing: border-box; }
+  #ha-court:focus-visible { outline: 3px solid #ffe18a; outline-offset: 3px; }
 </style>
 <div id="hawaii-auto-pong"
      style="max-width:850px;margin:auto;padding:14px;
@@ -30,31 +31,39 @@ components.html(r"""
         🌺 HAWAII TURBO PONG
       </div>
       <div style="font-size:13px;color:#b9f4e9">
-        COMPUTER VS. COMPUTER • AUTO PLAY
+        YOU VS. COMPUTER
       </div>
     </div>
 
     <!-- Live scores -->
     <div style="background:#0b3948;padding:10px;border-radius:8px">
-      🌴 Left: <b id="ha-left-score">0</b>
+      🌴 You: <b id="ha-left-score">0</b>
       &nbsp;|&nbsp;
-      🤖 Right: <b id="ha-right-score">0</b>
+      🤖 Computer: <b id="ha-right-score">0</b>
     </div>
 
-    <!-- Restart button -->
+    <!-- Start a match, or restart once it is underway. -->
     <button id="ha-restart"
       style="padding:10px 14px;border:0;border-radius:8px;
              background:#ffbd59;color:#533018;font-weight:bold;
              cursor:pointer">
-      🔄 Restart
+      ▶ Start game
     </button>
   </div>
 
   <!-- Canvas is the playing field -->
   <canvas id="ha-court" width="820" height="470"
+    tabindex="0" aria-label="Pong court. Control the left paddle with W and S or the up and down arrow keys."
+    aria-describedby="ha-instructions"
     style="width:100%;height:auto;display:block;margin-top:12px;
-           border:3px solid #e6bb75;border-radius:12px">
+           border:3px solid #e6bb75;border-radius:12px;
+           touch-action:none;cursor:ns-resize">
   </canvas>
+
+  <p id="ha-instructions" style="font-size:14px;color:#e0fff5">
+    You control the left paddle. Move your mouse over the court or drag your
+    finger on it. For keyboard controls, click the court and use W/S or ↑/↓.
+  </p>
 
   <!-- Game status and controls -->
   <div style="display:flex;align-items:center;gap:10px;
@@ -71,7 +80,7 @@ components.html(r"""
     </select>
 
     <label for="ha-skill" style="font-size:14px">
-      🤖 AI skill:
+      🤖 Computer skill:
     </label>
     <select id="ha-skill"
       style="padding:7px;border-radius:6px;border:0">
@@ -82,7 +91,7 @@ components.html(r"""
   </div>
 
   <p id="ha-status" style="font-size:14px;color:#e0fff5">
-    🌴 Both computers are ready to play!
+    🌴 Ready? Select Start game to play against the computer.
   </p>
 </div>
 
@@ -116,7 +125,7 @@ components.html(r"""
   const PH = 88;
   const BR = 8;
 
-  // Create the left computer-controlled paddle.
+  // Create your paddle on the left.
   const left = {
     x: 28,
     y: H / 2 - PH / 2,
@@ -140,8 +149,48 @@ components.html(r"""
 
   // Track animation timing and game state.
   let lastTime = 0;
-  let playing = true;
+  let playing = false;
   let serveTimer = null;
+  const pressedKeys = new Set();
+  const movementKeys = new Set(["w", "s", "arrowup", "arrowdown"]);
+
+  // Handle keys only while the court has focus, leaving menus usable.
+  canvas.addEventListener("keydown", (event) => {
+    const key = event.key.toLowerCase();
+    if (!movementKeys.has(key)) return;
+    event.preventDefault();
+    pressedKeys.add(key);
+  });
+  window.addEventListener("keyup", (event) => {
+    pressedKeys.delete(event.key.toLowerCase());
+  });
+  canvas.addEventListener("blur", () => pressedKeys.clear());
+  window.addEventListener("blur", () => pressedKeys.clear());
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) pressedKeys.clear();
+  });
+
+  // Convert mouse/touch coordinates to the canvas's internal playing field.
+  function movePointer(event) {
+    const rect = canvas.getBoundingClientRect();
+    left.y = (event.clientY - rect.top - canvas.clientTop) * H /
+      canvas.clientHeight - PH / 2;
+    clamp(left);
+  }
+  canvas.addEventListener("pointerdown", (event) => {
+    if (!event.isPrimary || event.button !== 0) return;
+    event.preventDefault();
+    pressedKeys.clear();
+    canvas.focus({preventScroll: true});
+    canvas.setPointerCapture(event.pointerId);
+    movePointer(event);
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (!event.isPrimary) return;
+    if (event.pointerType === "mouse" || canvas.hasPointerCapture(event.pointerId)) {
+      movePointer(event);
+    }
+  });
 
   // Read the selected starting speed.
   function selectedSpeed() {
@@ -156,6 +205,13 @@ components.html(r"""
   // Keep a paddle between the top and bottom edges.
   function clamp(paddle) {
     paddle.y = Math.max(0, Math.min(H - PH, paddle.y));
+  }
+
+  function movePlayer(dt) {
+    const up = pressedKeys.has("w") || pressedKeys.has("arrowup");
+    const down = pressedKeys.has("s") || pressedKeys.has("arrowdown");
+    left.y += (Number(down) - Number(up)) * 14 * dt;
+    clamp(left);
   }
 
   // Start a new point after a brief pause.
@@ -294,7 +350,7 @@ components.html(r"""
   function draw() {
     drawBeach();
 
-    // Draw the left computer's surfboard paddle.
+    // Draw your surfboard paddle.
     ctx.fillStyle = "#078ca0";
     ctx.beginPath();
     ctx.roundRect(left.x, left.y, PW, PH, 8);
@@ -334,12 +390,12 @@ components.html(r"""
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Label each computer player.
+    // Label the human and computer players.
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 13px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("AI 1", 75, 22);
-    ctx.fillText("AI 2", W - 75, 22);
+    ctx.fillText("YOU", 75, 22);
+    ctx.fillText("COMPUTER", W - 75, 22);
   }
 
   // Make a computer paddle follow the ball automatically.
@@ -403,11 +459,13 @@ components.html(r"""
 
   // Update ball motion, paddle motion, wall bounces, and scoring.
   function update(dt) {
+    // You can position your paddle even before starting or between points.
+    movePlayer(dt);
+
     // Freeze gameplay during the pause between points.
     if (!playing) return;
 
-    // Both paddles are computer-controlled.
-    moveAI(left, dt);
+    // Only the right paddle follows the ball automatically.
     moveAI(right, dt);
 
     // Move the ball using its horizontal and vertical velocity.
@@ -434,7 +492,7 @@ components.html(r"""
     if (ball.x + BR < 0) {
       right.score++;
       rightScoreText.textContent = right.score;
-      status.textContent = "🤖 AI 2 scores! The tropical rally continues.";
+      status.textContent = "🤖 The computer scores! Get ready for the next serve.";
       serve(1);
     }
 
@@ -442,7 +500,7 @@ components.html(r"""
     if (ball.x - BR > W) {
       left.score++;
       leftScoreText.textContent = left.score;
-      status.textContent = "🌺 AI 1 scores! Another point for the left side.";
+      status.textContent = "🌺 You score! Keep it up!";
       serve(-1);
     }
   }
@@ -462,6 +520,7 @@ components.html(r"""
     rightScoreText.textContent = "0";
 
     // Put both paddles in the center.
+    pressedKeys.clear();
     left.y = H / 2 - PH / 2;
     right.y = H / 2 - PH / 2;
 
@@ -473,7 +532,9 @@ components.html(r"""
 
     // Resume play and display a message.
     playing = true;
-    status.textContent = "🌴 New match! Both computers are playing.";
+    restartButton.textContent = "🔄 Restart";
+    status.textContent = "🌴 New match! You are on the left. Good luck!";
+    canvas.focus({preventScroll: true});
   }
 
   // Connect the Restart button to the restart function.
@@ -511,7 +572,7 @@ components.html(r"""
     requestAnimationFrame(frame);
   }
 
-  // Draw the initial court and start automatic play.
+  // Draw the court; the ball waits until Start game is selected.
   draw();
   requestAnimationFrame(frame);
 
